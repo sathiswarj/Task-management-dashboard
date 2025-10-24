@@ -1,61 +1,58 @@
 import React, { useState } from 'react';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { ApiPostRequest } from '../data/ApiPostRequest';
 
 const AddPopup = ({ onClose }) => {
-    const [criteriaList, setCriteriaList] = useState([]);
-    const [subtask, setSubtask] = useState([]);
-    const [title, setTitle] = useState('');
-    const [type, setType] = useState('');
-    const [priority, setPriority] = useState('');
-    const [project, setProject] = useState('');
-    const [assignee, setAssignee] = useState('');
-    const [description, setDescription] = useState('');
-    const [date, setDate] = useState('');
-    const [businessValue, setBusinessValue] = useState('');
-    
-    const handleSubmit = async (e) => {
-  e.preventDefault();
+    const { register, handleSubmit, control, formState: { errors } } = useForm({
+        defaultValues: {
+            name: '',
+            taskType: '',
+            taskPriority: '',
+            project: '',
+            taskAssignee: '',
+            description: '',
+            taskDueDate: '',
+            businessValue: '',
+            acceptanceCriteria: [],
+            subtasks: []
+        }
+    });
 
-  const taskData = {
-    name: title, 
-    taskType: type,
-    taskPriority: priority,
-    project,
-    taskAssignee: assignee,
-    description,
-    taskDueDate: date,
-    businessValue,
-    acceptanceCriteria: criteriaList
-      .filter(c => c.value.trim() !== '')
-      .map(c => ({ id: c.id.toString(), value: c.value })), 
-    subtasks: subtask
-      .filter(s => s.value.trim() !== '')
-      .map(s => ({ id: s.id.toString(), value: s.value }))  
-  };
+    const { fields: criteriaFields, append: appendCriteria, remove: removeCriteria } = useFieldArray({
+        control,
+        name: 'acceptanceCriteria'
+    });
 
-  try {
-    await ApiPostRequest.addTask(taskData);
-    console.log('Task Data:', taskData);
-    onClose();
-  } catch (error) {
-    console.error('Error creating task:', error);
-  }
-};
+    const { fields: subtaskFields, append: appendSubtask, remove: removeSubtask } = useFieldArray({
+        control,
+        name: 'subtasks'
+    });
 
-    const addCriteria = () => {
-        setCriteriaList([...criteriaList, { id: Date.now(), value: '' }]);
-    };
+    const onSubmit = async (data) => {
+        const taskData = {
+            name: data.name,
+            taskType: data.taskType,
+            taskPriority: data.taskPriority,
+            project: data.project,
+            taskAssignee: data.taskAssignee,
+            description: data.description,
+            taskDueDate: data.taskDueDate,
+            businessValue: data.businessValue,
+            acceptanceCriteria: data.acceptanceCriteria
+                .filter(c => c.value && c.value.trim() !== '')
+                .map(c => ({ value: c.value })),
+            subtasks: data.subtasks
+                .filter(s => s.value && s.value.trim() !== '')
+                .map(s => ({ value: s.value }))
+        };
 
-    const removeCriteria = (id) => {
-        setCriteriaList(criteriaList.filter(criteria => criteria.id !== id));
-    };
-
-    const addSubtask = () => {
-        setSubtask([...subtask, { id: Date.now(), value: '' }]);
-    };
-
-    const removeSubTask = (id) => {
-        setSubtask(subtask.filter(task => task.id !== id));
+        try {
+            await ApiPostRequest.addTask(taskData);
+            console.log('Task Data:', taskData);
+            onClose();
+        } catch (error) {
+            console.error('Error creating task:', error);
+        }
     };
 
     return (
@@ -73,99 +70,103 @@ const AddPopup = ({ onClose }) => {
                         Create New Task
                     </h2>
 
-                    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                    <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
                         <label className="flex flex-col text-sm font-semibold text-gray-700">
                             Task Title
                             <input
                                 type="text"
-                                value={title}
-                                onChange={(e) => setTitle(e.target.value)}
+                                {...register('name', { required: 'Task title is required' })}
                                 placeholder="Enter task title"
                                 className="border border-gray-300 p-2 rounded mt-1"
                             />
+                            {errors.name && <span className="text-red-500 text-xs mt-1">{errors.name.message}</span>}
                         </label>
+
                         <label className="flex flex-col text-sm font-semibold text-gray-700">
                             Task Type
-                            <select 
-                                value={type}
-                                onChange={(e) => setType(e.target.value)}
+                            <select
+                                {...register('taskType', { required: 'Task type is required' })}
                                 className="border border-gray-300 p-2 rounded mt-1"
                             >
-                                <option>Select Type</option>
-                                <option>Bug</option>
-                                <option>Feature</option>
-                                <option>Enhancement</option>
-                                <option>Research</option>
+                                <option value="">Select Type</option>
+                                <option value="Bug">Bug</option>
+                                <option value="Feature">Feature</option>
+                                <option value="Enhancement">Enhancement</option>
+                                <option value="Research">Research</option>
                             </select>
+                            {errors.taskType && <span className="text-red-500 text-xs mt-1">{errors.taskType.message}</span>}
                         </label>
+
                         <label className="flex flex-col text-sm font-semibold text-gray-700">
                             Priority
-                            <select 
-                                value={priority}
-                                onChange={(e) => setPriority(e.target.value)}
+                            <select
+                                {...register('taskPriority', { required: 'Priority is required' })}
                                 className="border border-gray-300 p-2 rounded mt-1"
                             >
-                                <option>Select Priority</option>
-                                <option>Low</option>
-                                <option>Medium</option>
-                                <option>High</option>
-                                <option>Critical</option>
+                                <option value="">Select Priority</option>
+                                <option value="Low">Low</option>
+                                <option value="Medium">Medium</option>
+                                <option value="High">High</option>
+                                <option value="Critical">Critical</option>
                             </select>
+                            {errors.taskPriority && <span className="text-red-500 text-xs mt-1">{errors.taskPriority.message}</span>}
                         </label>
+
                         <label className="flex flex-col text-sm font-semibold text-gray-700">
                             Project
-                            <select 
-                                value={project}
-                                onChange={(e) => setProject(e.target.value)}
+                            <select
+                                {...register('project', { required: 'Project is required' })}
                                 className="border border-gray-300 p-2 rounded mt-1"
                             >
-                                <option>Select Project</option>
-                                <option>E-commerce Platform</option>
-                                <option>Mobile App</option>
-                                <option>Analytics Dashboard</option>
+                                <option value="">Select Project</option>
+                                <option value="E-commerce Platform">E-commerce Platform</option>
+                                <option value="Mobile App">Mobile App</option>
+                                <option value="Analytics Dashboard">Analytics Dashboard</option>
                             </select>
+                            {errors.project && <span className="text-red-500 text-xs mt-1">{errors.project.message}</span>}
                         </label>
 
                         <label className="flex flex-col text-sm font-semibold text-gray-700">
                             Assignee
-                            <select 
-                                value={assignee}
-                                onChange={(e) => setAssignee(e.target.value)}
+                            <select
+                                {...register('taskAssignee', { required: 'Assignee is required' })}
                                 className="border border-gray-300 p-2 rounded mt-1"
                             >
-                                <option>Select Assignee</option>
-                                <option>John Doe</option>
-                                <option>John Smith</option>
-                                <option>Mike Johnson</option>
-                                <option>Sarah Willson</option>
+                                <option value="">Select Assignee</option>
+                                <option value="John Doe">John Doe</option>
+                                <option value="John Smith">John Smith</option>
+                                <option value="Mike Johnson">Mike Johnson</option>
+                                <option value="Sarah Willson">Sarah Willson</option>
                             </select>
+                            {errors.taskAssignee && <span className="text-red-500 text-xs mt-1">{errors.taskAssignee.message}</span>}
                         </label>
+
                         <label className="flex flex-col text-sm font-semibold text-gray-700">
                             Description
                             <textarea
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
+                                {...register('description', { required: 'Description is required' })}
                                 placeholder="Enter task details"
                                 className="border border-gray-300 p-2 rounded mt-1 resize-none"
                                 rows="3"
                             ></textarea>
+                            {errors.description && <span className="text-red-500 text-xs mt-1">{errors.description.message}</span>}
                         </label>
+
                         <label className="flex flex-col text-sm font-semibold text-gray-700">
-                            Date
-                            <input 
+                            Due Date
+                            <input
                                 type="date"
-                                value={date}
-                                onChange={(e) => setDate(e.target.value)}
-                                placeholder="Enter task details"
+                                {...register('taskDueDate', { required: 'Due date is required' })}
                                 className="border border-gray-300 p-2 rounded mt-1"
                             />
+                            {errors.taskDueDate && <span className="text-red-500 text-xs mt-1">{errors.taskDueDate.message}</span>}
                         </label>
+
                         <label className="flex flex-col text-sm font-semibold text-gray-700">
-                            Business value
+                            Business Value
                             <textarea
-                                value={businessValue}
-                                onChange={(e) => setBusinessValue(e.target.value)}
-                                placeholder="Enter task details"
+                                {...register('businessValue')}
+                                placeholder="Describe the business value"
                                 className="border border-gray-300 p-2 rounded mt-1 resize-none"
                                 rows="3"
                             ></textarea>
@@ -178,30 +179,25 @@ const AddPopup = ({ onClose }) => {
                                 </label>
                                 <button
                                     type="button"
-                                    onClick={addCriteria}
-                                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded transition text-sm"
+                                    onClick={() => appendCriteria({ value: '' })}
+                                    className="border border-2 text-black text-white px-4 py-2 rounded transition text-sm"
                                 >
                                     Add Criteria
                                 </button>
                             </div>
 
-                            {criteriaList.map((criteria) => (
-                                <div key={criteria.id} className="flex flex-row items-center gap-3">
+                            {criteriaFields.map((field, index) => (
+                                <div key={field.id} className="flex flex-row items-center gap-3">
                                     <input
                                         type="text"
+                                        {...register(`acceptanceCriteria.${index}.value`)}
                                         placeholder="Enter the acceptance criteria"
                                         className="border border-gray-300 p-2 rounded flex-1"
-                                        value={criteria.value}
-                                        onChange={(e) => {
-                                            setCriteriaList(criteriaList.map(c => 
-                                                c.id === criteria.id ? { ...c, value: e.target.value } : c
-                                            ));
-                                        }}
                                     />
                                     <button
                                         type="button"
-                                        onClick={() => removeCriteria(criteria.id)}
-                                        className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded transition whitespace-nowrap"
+                                        onClick={() => removeCriteria(index)}
+                                        className="border border-2 text-black px-4 py-2 rounded transition whitespace-nowrap"
                                     >
                                         Remove
                                     </button>
@@ -216,30 +212,25 @@ const AddPopup = ({ onClose }) => {
                                 </label>
                                 <button
                                     type="button"
-                                    onClick={addSubtask}
-                                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded transition text-sm"
+                                    onClick={() => appendSubtask({ value: '' })}
+                                    className="border border-2 text-black text-white px-4 py-2 rounded transition text-sm"
                                 >
-                                    Add subtask
+                                    Add Subtask
                                 </button>
                             </div>
 
-                            {subtask.map((task) => (
-                                <div key={task.id} className="flex flex-row items-center gap-3">
+                            {subtaskFields.map((field, index) => (
+                                <div key={field.id} className="flex flex-row items-center gap-3">
                                     <input
                                         type="text"
+                                        {...register(`subtasks.${index}.value`)}
                                         placeholder="Enter the subtask"
-                                        className="border border-gray-300 p-2 rounded flex-1"
-                                        value={task.value}
-                                        onChange={(e) => {
-                                            setSubtask(subtask.map(t => 
-                                                t.id === task.id ? { ...t, value: e.target.value } : t
-                                            ));
-                                        }}
+                                        className="border border-2 text-black p-2 rounded flex-1"
                                     />
                                     <button
                                         type="button"
-                                        onClick={() => removeSubTask(task.id)}
-                                        className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded transition whitespace-nowrap"
+                                        onClick={() => removeSubtask(index)}
+                                        className="border border-2 text-black px-4 py-2 rounded transition whitespace-nowrap"
                                     >
                                         Remove
                                     </button>
@@ -250,14 +241,14 @@ const AddPopup = ({ onClose }) => {
                         <div className="flex justify-end gap-3 mt-6">
                             <button
                                 type="button"
-                                className="bg-gray-400 text-white px-4 py-2 rounded"
+                                className="bg-gray-400 hover:bg-gray-500 text-white px-4 py-2 rounded transition"
                                 onClick={onClose}
                             >
                                 Cancel
                             </button>
                             <button
                                 type="submit"
-                                className="bg-blue-600 text-white px-4 py-2 rounded"
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded transition"
                             >
                                 Add Task
                             </button>

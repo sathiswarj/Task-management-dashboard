@@ -1,73 +1,90 @@
 import React, { useState, useEffect } from 'react';
+import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { ApiPostRequest } from '../data/ApiPostRequest';
-import { ApiGetRequset } from '../data/ApiGetRequest';
 
 const EditPopup = ({ onClose, taskData = null, isEdit = false }) => {
-    const [criteriaList, setCriteriaList] = useState([]);
-    const [subtask, setSubtask] = useState([]);
-    const [title, setTitle] = useState('');
-    const [type, setType] = useState('');
-    const [priority, setPriority] = useState('');
-    const [project, setProject] = useState('');
-    const [assignee, setAssignee] = useState('');
-    const [description, setDescription] = useState('');
-    const [date, setDate] = useState('');
-    const [businessValue, setBusinessValue] = useState('');
-    const [status, setStatus] = useState('Todo');
+    const {
+        register,
+        control,
+        handleSubmit,
+        reset,
+        formState: { errors }
+    } = useForm({
+        defaultValues: {
+            name: '',
+            taskType: '',
+            taskPriority: '',
+            project: '',
+            taskAssignee: '',
+            status: 'Todo',
+            description: '',
+            taskDueDate: '',
+            businessValue: '',
+            acceptanceCriteria: [],
+            subtasks: []
+        }
+    });
+
+    const { fields: criteriaFields, append: appendCriteria, remove: removeCriteria } = useFieldArray({
+        control,
+        name: 'acceptanceCriteria'
+    });
+
+    const { fields: subtaskFields, append: appendSubtask, remove: removeSubtask } = useFieldArray({
+        control,
+        name: 'subtasks'
+    });
 
     useEffect(() => {
         if (isEdit && taskData) {
-            setTitle(taskData.name || '');
-            setType(taskData.taskType || '');
-            setPriority(taskData.taskPriority || '');
-            setProject(taskData.project || '');
-            setAssignee(taskData.taskAssignee || '');
-            setDescription(taskData.description || '');
-            setStatus(taskData.status || 'Todo');
-            setBusinessValue(taskData.businessValue || '');
+            const formattedDate = taskData.taskDueDate 
+                ? new Date(taskData.taskDueDate).toISOString().split('T')[0] 
+                : '';
 
-            if (taskData.taskDueDate) {
-                const dateObj = new Date(taskData.taskDueDate);
-                const formattedDate = dateObj.toISOString().split('T')[0];
-                setDate(formattedDate);
-            }
+            const formattedCriteria = taskData.acceptanceCriteria?.map(c => ({
+                id: c.criteriaId || c._id || Date.now() + Math.random(),
+                value: c.value || '',
+                isExisting: true
+            })) || [];
 
-            if (taskData.acceptanceCriteria && taskData.acceptanceCriteria.length > 0) {
-                setCriteriaList(taskData.acceptanceCriteria.map(c => ({
-                    id: c.criteriaId || c._id || Date.now() + Math.random(),  
-                    value: c.value || '',
-                    isExisting: true  
-                })));
-            }
+            const formattedSubtasks = taskData.subtasks?.map(s => ({
+                id: s.subtaskId || s._id || Date.now() + Math.random(),
+                value: s.value || '',
+                isExisting: true
+            })) || [];
 
-            if (taskData.subtasks && taskData.subtasks.length > 0) {
-                setSubtask(taskData.subtasks.map(s => ({
-                    id: s.subtaskId || s._id || Date.now() + Math.random(),  
-                    value: s.value || '',
-                    isExisting: true  
-                })));
-            }
+            reset({
+                name: taskData.name || '',
+                taskType: taskData.taskType || '',
+                taskPriority: taskData.taskPriority || '',
+                project: taskData.project || '',
+                taskAssignee: taskData.taskAssignee || '',
+                status: taskData.status || 'Todo',
+                description: taskData.description || '',
+                taskDueDate: formattedDate,
+                businessValue: taskData.businessValue || '',
+                acceptanceCriteria: formattedCriteria,
+                subtasks: formattedSubtasks
+            });
         }
-    }, [isEdit, taskData]);
+    }, [isEdit, taskData, reset]);
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-
+    const onSubmit = async (data) => {
         const taskPayload = {
-            name: title,
-            taskType: type,
-            taskPriority: priority,
-            project,
-            taskAssignee: assignee,
-            status: status,
-            description,
-            taskDueDate: date,
-            businessValue,
-            acceptanceCriteria: criteriaList
-                .filter(c => c.value.trim() !== '')
-                .map(c => ({ value: c.value })),  
-            subtasks: subtask
-                .filter(s => s.value.trim() !== '')
+            name: data.name,
+            taskType: data.taskType,
+            taskPriority: data.taskPriority,
+            project: data.project,
+            taskAssignee: data.taskAssignee,
+            status: data.status,
+            description: data.description,
+            taskDueDate: data.taskDueDate,
+            businessValue: data.businessValue,
+            acceptanceCriteria: data.acceptanceCriteria
+                .filter(c => c.value?.trim() !== '')
+                .map(c => ({ value: c.value })),
+            subtasks: data.subtasks
+                .filter(s => s.value?.trim() !== '')
                 .map(s => ({ value: s.value }))
         };
 
@@ -85,32 +102,16 @@ const EditPopup = ({ onClose, taskData = null, isEdit = false }) => {
         }
     };
 
-    const addCriteria = () => {
-        setCriteriaList([...criteriaList, { id: Date.now(), value: '', isExisting: false }]);
-    };
-
-    const removeCriteria = (criteria) => {
-         setCriteriaList(criteriaList.filter(c => c.id !== criteria.id));
-    };
-
-    const addSubtask = () => {
-        setSubtask([...subtask, { id: Date.now(), value: '', isExisting: false }]);
-    };
-
-    const removeSubTask = (task) => {
-         setSubtask(subtask.filter(t => t.id !== task.id));
-    };
-
-     const handleDeleteCriteria = async (criteria) => {
+    const handleDeleteCriteria = async (index, criteria) => {
         if (!criteria.isExisting) {
-             removeCriteria(criteria);
+            removeCriteria(index);
             return;
         }
 
         try {
             const response = await ApiPostRequest.deleteCriteria(taskData.taskId, criteria.id);
             if (response.success) {
-                setCriteriaList(criteriaList.filter(c => c.id !== criteria.id));
+                removeCriteria(index);
                 alert('Acceptance criteria deleted successfully!');
             }
         } catch (error) {
@@ -119,16 +120,16 @@ const EditPopup = ({ onClose, taskData = null, isEdit = false }) => {
         }
     };
 
-    const handleDeleteSubTask = async (task) => {
+    const handleDeleteSubTask = async (index, task) => {
         if (!task.isExisting) {
-             removeSubTask(task);
+            removeSubtask(index);
             return;
         }
 
         try {
             const response = await ApiPostRequest.deleteSubTask(taskData.taskId, task.id);
             if (response.success) {
-                setSubtask(subtask.filter(t => t.id !== task.id));
+                removeSubtask(index);
                 alert('Subtask deleted successfully!');
             }
         } catch (error) {
@@ -138,240 +139,235 @@ const EditPopup = ({ onClose, taskData = null, isEdit = false }) => {
     };
 
     return (
-        <>
-            <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-                <div className="bg-white rounded shadow-lg p-8 w-full max-w-lg relative max-h-[80vh] overflow-y-auto">
-                    <button
-                        onClick={onClose}
-                        className="absolute top-3 right-3 text-gray-500 hover:text-gray-800 text-xl"
-                    >
-                        ✕
-                    </button>
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+            <div className="bg-white rounded shadow-lg p-8 w-full max-w-lg relative max-h-[80vh] overflow-y-auto">
+                <button
+                    onClick={onClose}
+                    className="absolute top-3 right-3 text-gray-500 hover:text-gray-800 text-xl"
+                >
+                    ✕
+                </button>
 
-                    <h2 className="text-2xl font-bold mb-6">
-                        {isEdit ? 'Edit Task' : 'Create New Task'}
-                    </h2>
+                <h2 className="text-2xl font-bold mb-6">
+                    {isEdit ? 'Edit Task' : 'Create New Task'}
+                </h2>
 
-                    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-                        <label className="flex flex-col text-sm font-semibold text-gray-700">
-                            Task Title
-                            <input
-                                type="text"
-                                value={title}
-                                onChange={(e) => setTitle(e.target.value)}
-                                placeholder="Enter task title"
-                                className="border border-gray-300 p-2 rounded mt-1"
-                                required
-                            />
-                        </label>
+                <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+                    <label className="flex flex-col text-sm font-semibold text-gray-700">
+                        Task Title
+                        <input
+                            type="text"
+                            {...register('name', { required: 'Task title is required' })}
+                            placeholder="Enter task title"
+                            className="border border-gray-300 p-2 rounded mt-1"
+                        />
+                        {errors.name && (
+                            <span className="text-red-500 text-xs mt-1">{errors.name.message}</span>
+                        )}
+                    </label>
 
-                        <label className="flex flex-col text-sm font-semibold text-gray-700">
-                            Task Type
-                            <select
-                                value={type}
-                                onChange={(e) => setType(e.target.value)}
-                                className="border border-gray-300 p-2 rounded mt-1"
-                                required
-                            >
-                                <option value="">Select Type</option>
-                                <option>Bug</option>
-                                <option>Feature</option>
-                                <option>Enhancement</option>
-                                <option>Research</option>
-                            </select>
-                        </label>
+                    <label className="flex flex-col text-sm font-semibold text-gray-700">
+                        Task Type
+                        <select
+                            {...register('taskType', { required: 'Task type is required' })}
+                            className="border border-gray-300 p-2 rounded mt-1"
+                        >
+                            <option value="">Select Type</option>
+                            <option>Bug</option>
+                            <option>Feature</option>
+                            <option>Enhancement</option>
+                            <option>Research</option>
+                        </select>
+                        {errors.taskType && (
+                            <span className="text-red-500 text-xs mt-1">{errors.taskType.message}</span>
+                        )}
+                    </label>
 
-                        <label className="flex flex-col text-sm font-semibold text-gray-700">
-                            Priority
-                            <select
-                                value={priority}
-                                onChange={(e) => setPriority(e.target.value)}
-                                className="border border-gray-300 p-2 rounded mt-1"
-                                required
-                            >
-                                <option value="">Select Priority</option>
-                                <option>Low</option>
-                                <option>Medium</option>
-                                <option>High</option>
-                                <option>Critical</option>
-                            </select>
-                        </label>
+                    <label className="flex flex-col text-sm font-semibold text-gray-700">
+                        Priority
+                        <select
+                            {...register('taskPriority', { required: 'Priority is required' })}
+                            className="border border-gray-300 p-2 rounded mt-1"
+                        >
+                            <option value="">Select Priority</option>
+                            <option>Low</option>
+                            <option>Medium</option>
+                            <option>High</option>
+                            <option>Critical</option>
+                        </select>
+                        {errors.taskPriority && (
+                            <span className="text-red-500 text-xs mt-1">{errors.taskPriority.message}</span>
+                        )}
+                    </label>
 
-                        <label className="flex flex-col text-sm font-semibold text-gray-700">
-                            Project
-                            <select
-                                value={project}
-                                onChange={(e) => setProject(e.target.value)}
-                                className="border border-gray-300 p-2 rounded mt-1"
-                                required
-                            >
-                                <option value="">Select Project</option>
-                                <option>E-commerce Platform</option>
-                                <option>Mobile App</option>
-                                <option>Analytics Dashboard</option>
-                            </select>
-                        </label>
+                    <label className="flex flex-col text-sm font-semibold text-gray-700">
+                        Project
+                        <select
+                            {...register('project', { required: 'Project is required' })}
+                            className="border border-gray-300 p-2 rounded mt-1"
+                        >
+                            <option value="">Select Project</option>
+                            <option>E-commerce Platform</option>
+                            <option>Mobile App</option>
+                            <option>Analytics Dashboard</option>
+                        </select>
+                        {errors.project && (
+                            <span className="text-red-500 text-xs mt-1">{errors.project.message}</span>
+                        )}
+                    </label>
 
-                        <label className="flex flex-col text-sm font-semibold text-gray-700">
-                            Assignee
-                            <select
-                                value={assignee}
-                                onChange={(e) => setAssignee(e.target.value)}
-                                className="border border-gray-300 p-2 rounded mt-1"
-                                required
-                            >
-                                <option value="">Select Assignee</option>
-                                <option>John Doe</option>
-                                <option>John Smith</option>
-                                <option>Mike Johnson</option>
-                                <option>Sarah Willson</option>
-                            </select>
-                        </label>
+                    <label className="flex flex-col text-sm font-semibold text-gray-700">
+                        Assignee
+                        <select
+                            {...register('taskAssignee', { required: 'Assignee is required' })}
+                            className="border border-gray-300 p-2 rounded mt-1"
+                        >
+                            <option value="">Select Assignee</option>
+                            <option>John Doe</option>
+                            <option>John Smith</option>
+                            <option>Mike Johnson</option>
+                            <option>Sarah Willson</option>
+                        </select>
+                        {errors.taskAssignee && (
+                            <span className="text-red-500 text-xs mt-1">{errors.taskAssignee.message}</span>
+                        )}
+                    </label>
 
-                        <label className="flex flex-col text-sm font-semibold text-gray-700">
-                            Status
-                            <select
-                                value={status}
-                                onChange={(e) => setStatus(e.target.value)}
-                                className="border border-gray-300 p-2 rounded mt-1"
-                                required
-                            >
-                                <option>Todo</option>
-                                <option>In Progress</option>
-                                <option>Review</option>
-                                <option>Done</option>
-                            </select>
-                        </label>
+                    <label className="flex flex-col text-sm font-semibold text-gray-700">
+                        Status
+                        <select
+                            {...register('status', { required: 'Status is required' })}
+                            className="border border-gray-300 p-2 rounded mt-1"
+                        >
+                            <option>Todo</option>
+                            <option>In Progress</option>
+                            <option>Review</option>
+                            <option>Done</option>
+                        </select>
+                        {errors.status && (
+                            <span className="text-red-500 text-xs mt-1">{errors.status.message}</span>
+                        )}
+                    </label>
 
-                        <label className="flex flex-col text-sm font-semibold text-gray-700">
-                            Description
-                            <textarea
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
-                                placeholder="Enter task details"
-                                className="border border-gray-300 p-2 rounded mt-1 resize-none"
-                                rows="3"
-                                required
-                            ></textarea>
-                        </label>
+                    <label className="flex flex-col text-sm font-semibold text-gray-700">
+                        Description
+                        <textarea
+                            {...register('description', { required: 'Description is required' })}
+                            placeholder="Enter task details"
+                            className="border border-gray-300 p-2 rounded mt-1 resize-none"
+                            rows="3"
+                        ></textarea>
+                        {errors.description && (
+                            <span className="text-red-500 text-xs mt-1">{errors.description.message}</span>
+                        )}
+                    </label>
 
-                        <label className="flex flex-col text-sm font-semibold text-gray-700">
-                            Due Date
-                            <input
-                                type="date"
-                                value={date}
-                                onChange={(e) => setDate(e.target.value)}
-                                className="border border-gray-300 p-2 rounded mt-1"
-                                required
-                            />
-                        </label>
+                    <label className="flex flex-col text-sm font-semibold text-gray-700">
+                        Due Date
+                        <input
+                            type="date"
+                            {...register('taskDueDate', { required: 'Due date is required' })}
+                            className="border border-gray-300 p-2 rounded mt-1"
+                        />
+                        {errors.taskDueDate && (
+                            <span className="text-red-500 text-xs mt-1">{errors.taskDueDate.message}</span>
+                        )}
+                    </label>
 
-                        <label className="flex flex-col text-sm font-semibold text-gray-700">
-                            Business Value
-                            <textarea
-                                value={businessValue}
-                                onChange={(e) => setBusinessValue(e.target.value)}
-                                placeholder="Describe the business value"
-                                className="border border-gray-300 p-2 rounded mt-1 resize-none"
-                                rows="3"
-                            ></textarea>
-                        </label>
+                    <label className="flex flex-col text-sm font-semibold text-gray-700">
+                        Business Value
+                        <textarea
+                            {...register('businessValue')}
+                            placeholder="Describe the business value"
+                            className="border border-gray-300 p-2 rounded mt-1 resize-none"
+                            rows="3"
+                        ></textarea>
+                    </label>
 
-                        <div className="flex flex-col gap-3">
-                            <div className="flex justify-between items-center">
-                                <label className="text-sm font-semibold text-gray-700">
-                                    Acceptance Criteria
-                                </label>
-                                <button
-                                    type="button"
-                                    onClick={addCriteria}
-                                    className="border border-2  text-black   px-4 py-2 rounded transition text-sm"
-                                >
-                                    Add Criteria
-                                </button>
-                            </div>
-
-                            {criteriaList.map((criteria) => (
-                                <div key={criteria.id} className="flex flex-row items-center gap-3">
-                                    <input
-                                        type="text"
-                                        placeholder="Enter the acceptance criteria"
-                                        className="border border-gray-300 p-2 rounded flex-1"
-                                        value={criteria.value}
-                                        onChange={(e) => {
-                                            setCriteriaList(criteriaList.map(c =>
-                                                c.id === criteria.id ? { ...c, value: e.target.value } : c
-                                            ));
-                                        }}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => handleDeleteCriteria(criteria)}
-                                        className="border border-2  text-black px-4 py-2 rounded transition whitespace-nowrap"
-                                    >
-                                        Remove
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-
-                        <div className="flex flex-col gap-3">
-                            <div className="flex justify-between items-center">
-                                <label className="text-sm font-semibold text-gray-700">
-                                    Subtasks
-                                </label>
-                                <button
-                                    type="button"
-                                    onClick={addSubtask}
-                                    className="border border-2  text-black px-4 py-2 rounded transition text-sm"
-                                >
-                                    Add Subtask
-                                </button>
-                            </div>
-
-                            {subtask.map((task) => (
-                                <div key={task.id} className="flex flex-row items-center gap-3">
-                                    <input
-                                        type="text"
-                                        placeholder="Enter the subtask"
-                                        className="border border-gray-300 p-2 rounded flex-1"
-                                        value={task.value}
-                                        onChange={(e) => {
-                                            setSubtask(subtask.map(t =>
-                                                t.id === task.id ? { ...t, value: e.target.value } : t
-                                            ));
-                                        }}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => handleDeleteSubTask(task)}
-                                        className="border border-2  text-black px-4 py-2 rounded transition whitespace-nowrap"
-                                    >
-                                        Remove
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-
-                        <div className="flex justify-end gap-3 mt-6">
+                    <div className="flex flex-col gap-3">
+                        <div className="flex justify-between items-center">
+                            <label className="text-sm font-semibold text-gray-700">
+                                Acceptance Criteria
+                            </label>
                             <button
                                 type="button"
-                                className="border border-2  text-black px-4 py-2 rounded transition"
-                                onClick={onClose}
+                                onClick={() => appendCriteria({ id: Date.now(), value: '', isExisting: false })}
+                                className="border border-2 text-black px-4 py-2 rounded transition text-sm"
                             >
-                                Cancel
-                            </button>
-                            <button
-                                type="submit"
-                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded transition"
-                            >
-                                {isEdit ? 'Update Task' : 'Add Task'}
+                                Add Criteria
                             </button>
                         </div>
-                    </form>
-                </div>
+
+                        {criteriaFields.map((field, index) => (
+                            <div key={field.id} className="flex flex-row items-center gap-3">
+                                <input
+                                    type="text"
+                                    placeholder="Enter the acceptance criteria"
+                                    className="border border-gray-300 p-2 rounded flex-1"
+                                    {...register(`acceptanceCriteria.${index}.value`)}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => handleDeleteCriteria(index, field)}
+                                    className="border border-2 text-black px-4 py-2 rounded transition whitespace-nowrap"
+                                >
+                                    Remove
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="flex flex-col gap-3">
+                        <div className="flex justify-between items-center">
+                            <label className="text-sm font-semibold text-gray-700">
+                                Subtasks
+                            </label>
+                            <button
+                                type="button"
+                                onClick={() => appendSubtask({ id: Date.now(), value: '', isExisting: false })}
+                                className="border border-2 text-black px-4 py-2 rounded transition text-sm"
+                            >
+                                Add Subtask
+                            </button>
+                        </div>
+
+                        {subtaskFields.map((field, index) => (
+                            <div key={field.id} className="flex flex-row items-center gap-3">
+                                <input
+                                    type="text"
+                                    placeholder="Enter the subtask"
+                                    className="border border-gray-300 p-2 rounded flex-1"
+                                    {...register(`subtasks.${index}.value`)}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => handleDeleteSubTask(index, field)}
+                                    className="border border-2 text-black px-4 py-2 rounded transition whitespace-nowrap"
+                                >
+                                    Remove
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="flex justify-end gap-3 mt-6">
+                        <button
+                            type="button"
+                            className="border border-2 text-black px-4 py-2 rounded transition"
+                            onClick={onClose}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            type="submit"
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded transition"
+                        >
+                            {isEdit ? 'Update Task' : 'Add Task'}
+                        </button>
+                    </div>
+                </form>
             </div>
-        </>
+        </div>
     );
 };
 
